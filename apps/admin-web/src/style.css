@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg: #f6f2ea;
   --paper: #fffaf3;
   --card: #ffffff;
@@ -173,7 +173,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   border: 1px solid #d8cbbb;
   border-radius: 14px;
@@ -181,6 +182,13 @@ select {
   font-size: 16px;
   background: white;
   color: var(--ink);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 120px;
+  font-family: inherit;
+  line-height: 1.45;
 }
 
 button {
@@ -216,6 +224,10 @@ button:hover {
 
 .inline-controls input {
   min-width: 180px;
+}
+
+.inline-controls select {
+  min-width: 150px;
 }
 
 .error {
@@ -313,6 +325,42 @@ pre {
   border-radius: 20px;
 }
 
+.rate-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, .8fr) minmax(0, 1.2fr);
+  gap: 16px;
+}
+
+.bulk-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.rate-date-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.rate-day {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  background: white;
+}
+
+.rate-day span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.rate-day input {
+  padding: 10px 12px;
+  font-size: 15px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -393,5 +441,10 @@ td small {
     min-width: 0;
     width: 100%;
     flex-direction: column;
+  }
+
+  .rate-layout,
+  .bulk-bar {
+    grid-template-columns: 1fr;
   }
 }

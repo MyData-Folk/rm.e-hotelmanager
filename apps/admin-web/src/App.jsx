@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 
@@ -643,6 +643,452 @@ function RulesPanel({ selectedHotelId, onRulesImported }) {
   );
 }
 
+const DEFAULT_ROOMS = [
+  'Double Classique',
+  'Double Single Use Classique',
+  'Twin Classique',
+  'Double Classique Terrasse',
+  'Double Deluxe',
+  'Twin Deluxe',
+  'Double Deluxe Terrasse',
+  'Deux Chambres Adjacentes 4 personnes',
+];
+
+function isoToday() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDays(isoDate, days) {
+  const date = new Date(`${isoDate}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function dateRange(start, end) {
+  const output = [];
+  const current = new Date(`${start}T00:00:00`);
+  const limit = new Date(`${end}T00:00:00`);
+
+  if (Number.isNaN(current.getTime()) || Number.isNaN(limit.getTime()) || current > limit) {
+    return output;
+  }
+
+  while (current <= limit) {
+    output.push(current.toISOString().slice(0, 10));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return output;
+}
+
+function splitLines(value) {
+  return value
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function RatePilotagePanel({ selectedHotelId }) {
+  const today = isoToday();
+  const [hotelId, setHotelId] = useState(selectedHotelId || 'folkestone');
+  const [start, setStart] = useState(today);
+  const [end, setEnd] = useState(addDays(today, 6));
+  const [roomsText, setRoomsText] = useState(DEFAULT_ROOMS.join('\n'));
+  const [plansText, setPlansText] = useState('OTA-RO-FLEX\nCWT-BB-FLEX');
+  const [sourceMode, setSourceMode] = useState('hybrid');
+  const [baseRates, setBaseRates] = useState({});
+  const [bulkPrice, setBulkPrice] = useState('');
+  const [preview, setPreview] = useState(null);
+  const [saveResult, setSaveResult] = useState(null);
+  const [recalculateResult, setRecalculateResult] = useState(null);
+  const [grid, setGrid] = useState(null);
+  const [conflicts, setConflicts] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (selectedHotelId) setHotelId(selectedHotelId);
+  }, [selectedHotelId]);
+
+  const dates = useMemo(() => dateRange(start, end), [start, end]);
+  const rooms = useMemo(() => splitLines(roomsText), [roomsText]);
+  const plans = useMemo(() => splitLines(plansText), [plansText]);
+  const referencePlan = plans[0] || 'OTA-RO-FLEX';
+
+  function updateBaseRate(day, value) {
+    setBaseRates((current) => ({
+      ...current,
+      [day]: value,
+    }));
+  }
+
+  function applyBulkPrice() {
+    if (bulkPrice === '') return;
+
+    setBaseRates((current) => {
+      const next = { ...current };
+      dates.forEach((day) => {
+        next[day] = bulkPrice;
+      });
+      return next;
+    });
+  }
+
+  async function previewFirstRate() {
+    setError('');
+    setPreview(null);
+
+    const day = dates.find((item) => baseRates[item] !== '' && baseRates[item] !== undefined);
+    if (!day) {
+      setError('Renseigne au moins un tarif de référence.');
+      return;
+    }
+
+    try {
+      const result = await apiRequest('/admin/rates/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hotel_id: hotelId,
+          date: day,
+          base_price: Number(baseRates[day]),
+          rooms,
+          plans,
+        }),
+      });
+
+      setPreview(result);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function saveBaseRates() {
+    setError('');
+    setSaveResult(null);
+
+    const rates = dates
+      .filter((day) => baseRates[day] !== '' && baseRates[day] !== undefined)
+      .map((day) => ({
+        date: day,
+        base_price: Number(baseRates[day]),
+      }));
+
+    if (!rates.length) {
+      setError('Aucun tarif à sauvegarder.');
+      return;
+    }
+
+    try {
+      const result = await apiRequest('/admin/rates/base/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hotel_id: hotelId,
+          rates,
+          rooms,
+          plans,
+        }),
+      });
+
+      setSaveResult(result);
+      await loadGrid();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function recalculateRates() {
+    setError('');
+    setRecalculateResult(null);
+
+    try {
+      const result = await apiRequest('/admin/rates/recalculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hotel_id: hotelId,
+          start,
+          end,
+          rooms,
+          plans,
+        }),
+      });
+
+      setRecalculateResult(result);
+      await loadGrid();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function loadGrid() {
+    setError('');
+    setGrid(null);
+
+    try {
+      const query = new URLSearchParams({
+        hotel_id: hotelId,
+        start,
+        end,
+        rooms: rooms.join(','),
+        plans: plans.join(','),
+        source_mode: sourceMode,
+      });
+
+      setGrid(await apiRequest(`/admin/rates/grid?${query.toString()}`));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function loadConflicts() {
+    setError('');
+    setConflicts(null);
+
+    try {
+      const query = new URLSearchParams({
+        hotel_id: hotelId,
+        start,
+        end,
+        rooms: rooms.join(','),
+        plans: plans.join(','),
+      });
+
+      setConflicts(await apiRequest(`/admin/rates/conflicts?${query.toString()}`));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  const gridRows = useMemo(() => {
+    if (!grid?.items?.length) return [];
+
+    return grid.items.reduce((rows, item) => {
+      const key = `${item.date}|${item.room_name}`;
+      if (!rows[key]) {
+        rows[key] = {
+          date: item.date,
+          room_name: item.room_name,
+          plans: {},
+        };
+      }
+      rows[key].plans[item.plan_code] = item;
+      return rows;
+    }, {});
+  }, [grid]);
+
+  return (
+    <section className="panel wide">
+      <div className="panel-header">
+        <div>
+          <p className="eyebrow">Pilotage tarifs</p>
+          <h2>Tarif de référence et recalcul</h2>
+          <p className="muted">
+            Saisie OTA-RO-FLEX, preview des règles, sauvegarde BaseRate et recalcul DerivedRate.
+          </p>
+        </div>
+
+        <div className="inline-controls">
+          <input value={hotelId} onChange={(event) => setHotelId(event.target.value)} />
+          <select value={sourceMode} onChange={(event) => setSourceMode(event.target.value)}>
+            <option value="hybrid">hybrid</option>
+            <option value="calculated">calculated</option>
+            <option value="excel">excel</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="rate-layout">
+        <div className="soft-box">
+          <strong>Période</strong>
+          <div className="grid-form">
+            <label>
+              Début
+              <input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
+            </label>
+            <label>
+              Fin
+              <input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
+            </label>
+          </div>
+
+          <label>
+            Chambres
+            <textarea value={roomsText} onChange={(event) => setRoomsText(event.target.value)} rows={8} />
+          </label>
+
+          <label>
+            Plans
+            <textarea value={plansText} onChange={(event) => setPlansText(event.target.value)} rows={4} />
+          </label>
+        </div>
+
+        <div className="soft-box">
+          <strong>Saisie {referencePlan}</strong>
+          <div className="bulk-bar">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={bulkPrice}
+              onChange={(event) => setBulkPrice(event.target.value)}
+              placeholder="Prix à appliquer"
+            />
+            <button onClick={applyBulkPrice}>Appliquer</button>
+          </div>
+
+          <div className="rate-date-grid">
+            {dates.map((day) => (
+              <label className="rate-day" key={day}>
+                <span>{day}</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={baseRates[day] || ''}
+                  onChange={(event) => updateBaseRate(day, event.target.value)}
+                  placeholder="OTA"
+                />
+              </label>
+            ))}
+          </div>
+
+          <div className="actions">
+            <button onClick={previewFirstRate}>Preview</button>
+            <button className="primary" onClick={saveBaseRates}>Sauvegarder</button>
+            <button onClick={recalculateRates}>Recalculer</button>
+          </div>
+        </div>
+      </div>
+
+      {error && <p className="error">{error}</p>}
+
+      {(saveResult || recalculateResult || grid) && (
+        <div className="stats-grid">
+          <StatCard label="BaseRate" value={saveResult?.base_rates_saved ?? '-'} />
+          <StatCard label="DerivedRate" value={saveResult?.derived_rates_saved ?? recalculateResult?.derived_rates_saved ?? '-'} />
+          <StatCard label="Dates recalculées" value={recalculateResult?.recalculated_dates?.length ?? '-'} />
+          <StatCard label="Manquants grille" value={grid?.summary?.missing_count ?? '-'} />
+        </div>
+      )}
+
+      {preview && (
+        <div className="soft-box">
+          <strong>Preview {preview.date}</strong>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Chambre</th>
+                  <th>Plan</th>
+                  <th>Prix</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.calculations.slice(0, 80).map((item) => (
+                  <tr key={`${item.room_name}-${item.plan_code}`}>
+                    <td>{item.room_name}</td>
+                    <td><strong>{item.plan_code}</strong></td>
+                    <td>{item.price}</td>
+                    <td>{item.source}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div className="actions">
+        <button onClick={loadGrid}>Charger la grille</button>
+        <button onClick={loadConflicts}>Voir les conflits</button>
+      </div>
+
+      {grid && (
+        <div className="soft-box">
+          <strong>Grille tarifaire</strong>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Chambre</th>
+                  {plans.map((plan) => (
+                    <th key={plan}>{plan}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Object.values(gridRows).slice(0, 120).map((row) => (
+                  <tr key={`${row.date}-${row.room_name}`}>
+                    <td>{row.date}</td>
+                    <td>{row.room_name}</td>
+                    {plans.map((plan) => {
+                      const item = row.plans[plan];
+                      return (
+                        <td key={plan}>
+                          {item?.missing ? (
+                            <span className="status inactive">missing</span>
+                          ) : (
+                            <>
+                              <strong>{item?.price}</strong>
+                              <small>{item?.source_used}</small>
+                            </>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {conflicts && (
+        <div className="soft-box">
+          <strong>Conflits calculated vs Excel</strong>
+          <div className="stats-grid">
+            <StatCard label="Conflits" value={conflicts.summary?.conflicts_count ?? 0} />
+            <StatCard label="Écarts" value={conflicts.summary?.mismatch_count ?? 0} />
+            <StatCard label="Calculated manquant" value={conflicts.summary?.missing_calculated_count ?? 0} />
+            <StatCard label="Excel manquant" value={conflicts.summary?.missing_excel_count ?? 0} />
+          </div>
+
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Chambre</th>
+                  <th>Plan</th>
+                  <th>Calculated</th>
+                  <th>Excel</th>
+                  <th>Écart</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conflicts.conflicts?.slice(0, 120).map((item) => (
+                  <tr key={`${item.date}-${item.room_name}-${item.plan_code}`}>
+                    <td>{item.date}</td>
+                    <td>{item.room_name}</td>
+                    <td>{item.plan_code}</td>
+                    <td>{item.calculated_price ?? '-'}</td>
+                    <td>{item.excel_price ?? '-'}</td>
+                    <td><strong>{item.difference ?? '-'}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function App() {
   const [apiKey, setApiKey] = useState(getSavedApiKey());
   const [health, setHealth] = useState(null);
@@ -677,6 +1123,7 @@ function App() {
           <a href="#json">JSON partenaires</a>
           <a href="#catalogue">Catalogue plans</a>
           <a href="#rules">Règles tarifaires</a>
+          <a href="#pilotage">Pilotage tarifs</a>
         </nav>
       </aside>
 
@@ -729,6 +1176,10 @@ function App() {
             selectedHotelId={selectedHotelId}
             onRulesImported={() => setRefreshToken((value) => value + 1)}
           />
+        </div>
+
+        <div id="pilotage">
+          <RatePilotagePanel selectedHotelId={selectedHotelId} />
         </div>
       </section>
     </main>
