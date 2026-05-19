@@ -1,36 +1,38 @@
-from fastapi import FastAPI
+﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import init_db
-from app.routers import public, admin_hotels
+from app.routers import public, admin_hotels, admin_uploads, admin_rate_plans
 
 
 app = FastAPI(
-    title='RM e-HotelManager API',
-    version='0.1.0',
+    title="RM e-HotelManager API",
+    version="0.2.0",
 )
 
 origins = [
     settings.user_web_origin,
     settings.admin_web_origin,
-    'http://localhost:5173',
-    'http://localhost:5174',
+    "http://localhost:5173",
+    "http://localhost:5174",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(set([origin for origin in origins if origin])),
     allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
-@app.on_event('startup')
+@app.on_event("startup")
 def on_startup():
     init_db()
 
 
 app.include_router(public.router)
 app.include_router(admin_hotels.router)
+app.include_router(admin_uploads.router)
+app.include_router(admin_rate_plans.router)
