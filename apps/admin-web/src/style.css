@@ -386,3 +386,29 @@ td small {
     flex-direction: column;
   }
 }
+
+select {
+  width: 100%;
+  border: 1px solid #d8cbbb;
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 16px;
+  background: white;
+  color: var(--ink);
+}
+
+.grid-form.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.steps-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
