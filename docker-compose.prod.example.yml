@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-hoteldb}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - hotel-db-data:/var/lib/postgresql/data
     healthcheck:
@@ -18,39 +18,57 @@ services:
     build:
       context: ./backend
     environment:
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-      ADMIN_API_KEY: ${ADMIN_API_KEY:?ADMIN_API_KEY is required}
+      DATABASE_URL: ${DATABASE_URL}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
       ENV: production
-      USER_WEB_ORIGIN: ${USER_WEB_ORIGIN:?USER_WEB_ORIGIN is required}
-      ADMIN_WEB_ORIGIN: ${ADMIN_WEB_ORIGIN:?ADMIN_WEB_ORIGIN is required}
+      USER_WEB_ORIGIN: ${USER_WEB_ORIGIN}
+      ADMIN_WEB_ORIGIN: ${ADMIN_WEB_ORIGIN}
       DEFAULT_RATE_SOURCE_MODE: ${DEFAULT_RATE_SOURCE_MODE:-hybrid}
     depends_on:
       hotel-db:
         condition: service_healthy
     expose:
       - "8000"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.hotel-rm-backend.rule=Host(`api-rm.e-hotelmanager.com`)
+      - traefik.http.routers.hotel-rm-backend.entrypoints=https
+      - traefik.http.routers.hotel-rm-backend.tls=true
+      - traefik.http.services.hotel-rm-backend.loadbalancer.server.port=8000
     restart: unless-stopped
 
   hotel-rm-admin-web:
     build:
       context: ./apps/admin-web
       args:
-        VITE_API_URL: ${VITE_API_URL:?VITE_API_URL is required}
+        VITE_API_URL: ${VITE_API_URL}
     expose:
       - "8080"
     depends_on:
       - hotel-rm-backend
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.hotel-rm-admin.rule=Host(`admin-rm.e-hotelmanager.com`)
+      - traefik.http.routers.hotel-rm-admin.entrypoints=https
+      - traefik.http.routers.hotel-rm-admin.tls=true
+      - traefik.http.services.hotel-rm-admin.loadbalancer.server.port=8080
     restart: unless-stopped
 
   hotel-rm-user-web:
     build:
       context: ./apps/user-web
       args:
-        VITE_API_URL: ${VITE_API_URL:?VITE_API_URL is required}
+        VITE_API_URL: ${VITE_API_URL}
     expose:
       - "8080"
     depends_on:
       - hotel-rm-backend
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.hotel-rm-user.rule=Host(`rm.e-hotelmanager.com`)
+      - traefik.http.routers.hotel-rm-user.entrypoints=https
+      - traefik.http.routers.hotel-rm-user.tls=true
+      - traefik.http.services.hotel-rm-user.loadbalancer.server.port=8080
     restart: unless-stopped
 
 volumes:
