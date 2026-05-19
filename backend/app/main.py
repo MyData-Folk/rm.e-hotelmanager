@@ -12,6 +12,7 @@ from app.routers import (
     admin_uploads,
     admin_rate_plans,
     admin_rules,
+    simulation,
 )
 
 
@@ -50,3 +51,5 @@ app.include_router(admin_rules.router)
 app.include_router(admin_excel.router)
 app.include_router(admin_resolver.router)
 app.include_router(admin_rates.router)
+app.include_router(simulation.public_router)
+app.include_router(simulation.admin_router)
