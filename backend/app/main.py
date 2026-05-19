@@ -7,6 +7,7 @@ from app.routers import (
     public,
     admin_excel,
     admin_hotels,
+    admin_rates,
     admin_resolver,
     admin_uploads,
     admin_rate_plans,
@@ -48,3 +49,4 @@ app.include_router(admin_rate_plans.router)
 app.include_router(admin_rules.router)
 app.include_router(admin_excel.router)
 app.include_router(admin_resolver.router)
+app.include_router(admin_rates.router)
