@@ -29,8 +29,6 @@ services:
         condition: service_healthy
     expose:
       - "8000"
-    labels:
-      - "traefik.http.services.hotel-rm-backend.loadbalancer.server.port=8000"
     restart: unless-stopped
 
   hotel-rm-admin-web:
@@ -40,8 +38,6 @@ services:
         VITE_API_URL: ${VITE_API_URL:?VITE_API_URL is required}
     expose:
       - "8080"
-    labels:
-      - "traefik.http.services.hotel-rm-admin-web.loadbalancer.server.port=8080"
     depends_on:
       - hotel-rm-backend
     restart: unless-stopped
@@ -53,8 +49,6 @@ services:
         VITE_API_URL: ${VITE_API_URL:?VITE_API_URL is required}
     expose:
       - "8080"
-    labels:
-      - "traefik.http.services.hotel-rm-user-web.loadbalancer.server.port=8080"
     depends_on:
       - hotel-rm-backend
     restart: unless-stopped
