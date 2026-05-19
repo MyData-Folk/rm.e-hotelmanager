@@ -22,24 +22,45 @@ admin_router = APIRouter(
 
 class SimulationPayload(BaseModel):
     hotel_id: str
-    date: str
-    room_name: str
+    date: Optional[str] = None
+    room_name: Optional[str] = None
+    room: Optional[str] = None
     partner_name: str
     plan_code: Optional[str] = None
+    plan: Optional[str] = None
     source_mode: str = "hybrid"
     discount_percentage: Optional[float] = None
+    start: Optional[str] = None
+    end: Optional[str] = None
+    apply_commission: bool = True
+    apply_partner_discount: bool = True
+    promo_discount: float = 0
 
 
 def run_simulation(payload: SimulationPayload, session: Session) -> dict:
+    room_name = payload.room_name or payload.room
+    plan_code = payload.plan_code or payload.plan
+    date = payload.date or payload.start
+
+    if not date:
+        raise ValueError("Une date ou une date de debut est requise.")
+    if not room_name:
+        raise ValueError("Une chambre est requise.")
+
     return simulate_partner_offer(
         session=session,
         hotel_id=payload.hotel_id,
-        date=payload.date,
-        room_name=payload.room_name,
+        date=date,
+        room_name=room_name,
         partner_name=payload.partner_name,
-        plan_code=payload.plan_code,
+        plan_code=plan_code,
         source_mode=payload.source_mode,
         discount_percentage=payload.discount_percentage,
+        start=payload.start,
+        end=payload.end,
+        apply_commission=payload.apply_commission,
+        apply_partner_discount=payload.apply_partner_discount,
+        promo_discount=payload.promo_discount,
     )
 
 
@@ -73,8 +94,9 @@ def export_simulation(
 ):
     try:
         simulation = export_simulation_payload(run_simulation(payload, session))
+        export_date = payload.date or payload.start or "simulation"
         response.headers["Content-Disposition"] = (
-            f'attachment; filename="simulation-{payload.hotel_id}-{payload.date}.json"'
+            f'attachment; filename="simulation-{payload.hotel_id}-{export_date}.json"'
         )
         return simulation
     except ValueError as exc:

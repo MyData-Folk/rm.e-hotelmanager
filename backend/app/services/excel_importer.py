@@ -2,7 +2,7 @@ import io
 import re
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from openpyxl import load_workbook
@@ -75,11 +75,26 @@ def parse_excel_date(value: Any) -> str | None:
     if isinstance(value, date):
         return value.isoformat()
 
+    if isinstance(value, (int, float)) and value > 20000:
+        try:
+            return (datetime(1899, 12, 30) + timedelta(days=float(value))).date().isoformat()
+        except (OverflowError, ValueError):
+            return None
+
     raw = str(value).strip()
     if not raw:
         return None
 
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%m/%d/%Y"):
+    for fmt in (
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+        "%d/%m/%y",
+        "%d-%m-%Y",
+        "%d-%m-%y",
+        "%d.%m.%Y",
+        "%d.%m.%y",
+        "%m/%d/%Y",
+    ):
         try:
             return datetime.strptime(raw, fmt).date().isoformat()
         except ValueError:
@@ -147,6 +162,18 @@ def extract_plan_code(values: list[Any], fallback: str | None = None) -> str | N
             return match.group(0)
 
     return None
+
+
+def extract_prefixed_plan_code(value: Any) -> str | None:
+    label = text_value(value)
+    if not label:
+        return None
+
+    prefix = label.split(" - ", 1)[0].strip()
+    if PLAN_CODE_RE.fullmatch(prefix.upper()):
+        return prefix.upper()
+
+    return extract_plan_code([label])
 
 
 def extract_room_name(values: list[Any], plan_code: str | None = None) -> str | None:
@@ -430,6 +457,78 @@ def parse_column_oriented_dates(
     return {"imported_rates_count": rates_count, "availability_cells_count": availability_count}
 
 
+def is_planning_report(sheet: Worksheet, row_headers: list[dict[str, Any]]) -> bool:
+    first_row_headers = [
+        header
+        for header in row_headers
+        if header["row"] == 1 and min(column for column, _date in header["dates"]) >= 4
+    ]
+    if not first_row_headers:
+        return False
+
+    descriptors = {
+        normalize_for_keyword(text_value(sheet.cell(row_index, 3).value))
+        for row_index in range(2, min(sheet.max_row, 30) + 1)
+    }
+    return any("left for sale" in value for value in descriptors) and any(
+        "price" in value for value in descriptors
+    )
+
+
+def parse_planning_report(
+    sheet: Worksheet,
+    header: dict[str, Any],
+    parsed: ParsedExcel,
+    hotel_id: str,
+    rate_keys: set[tuple[str, str, str]],
+    availability_keys: set[tuple[str, str, str]],
+) -> dict[str, int]:
+    rates_count = 0
+    availability_count = 0
+    current_room_name: str | None = None
+
+    for row_index in range(header["row"] + 1, sheet.max_row + 1):
+        room_label = text_value(sheet.cell(row_index, 1).value)
+        if room_label:
+            current_room_name = room_label
+
+        if not current_room_name:
+            continue
+
+        descriptor = normalize_for_keyword(text_value(sheet.cell(row_index, 3).value))
+
+        if "left for sale" in descriptor:
+            for column_index, cell_date in header["dates"]:
+                if add_availability_cell(
+                    parsed,
+                    availability_keys,
+                    hotel_id,
+                    cell_date,
+                    current_room_name,
+                    sheet.cell(row_index, column_index).value,
+                ):
+                    availability_count += 1
+            continue
+
+        if "price" not in descriptor:
+            continue
+
+        plan_code = extract_prefixed_plan_code(sheet.cell(row_index, 2).value)
+        for column_index, cell_date in header["dates"]:
+            if add_imported_rate(
+                parsed,
+                rate_keys,
+                hotel_id,
+                cell_date,
+                current_room_name,
+                plan_code,
+                sheet.cell(row_index, column_index).value,
+            ):
+                rates_count += 1
+
+    return {"imported_rates_count": rates_count, "availability_cells_count": availability_count}
+
+
 def parse_workbook(hotel_id: str, excel_bytes: bytes) -> ParsedExcel:
     parsed = ParsedExcel(import_id=uuid.uuid4().hex[:12])
 
@@ -458,6 +557,29 @@ def parse_workbook(hotel_id: str, excel_bytes: bytes) -> ParsedExcel:
             parsed.warnings.append(
                 f"Feuille '{sheet.title}': aucune série de dates reconnue."
             )
+            parsed.sheets.append(sheet_summary)
+            continue
+
+        if is_planning_report(sheet, row_headers):
+            planning_header = next(header for header in row_headers if header["row"] == 1)
+            counts = parse_planning_report(
+                sheet,
+                planning_header,
+                parsed,
+                hotel_id,
+                rate_keys,
+                availability_keys,
+            )
+            sheet_summary["kind"] = "planning_report"
+            sheet_summary["imported_rates_count"] += counts["imported_rates_count"]
+            sheet_summary["availability_cells_count"] += counts["availability_cells_count"]
+            if (
+                sheet_summary["imported_rates_count"] == 0
+                and sheet_summary["availability_cells_count"] == 0
+            ):
+                parsed.warnings.append(
+                    f"Feuille '{sheet.title}': rapport Planning detecte mais aucune cellule exploitable."
+                )
             parsed.sheets.append(sheet_summary)
             continue
 
