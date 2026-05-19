@@ -3,7 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import init_db
-from app.routers import public, admin_hotels, admin_uploads, admin_rate_plans, admin_rules
+from app.routers import (
+    public,
+    admin_excel,
+    admin_hotels,
+    admin_uploads,
+    admin_rate_plans,
+    admin_rules,
+)
 
 
 app = FastAPI(
@@ -38,3 +45,4 @@ app.include_router(admin_hotels.router)
 app.include_router(admin_uploads.router)
 app.include_router(admin_rate_plans.router)
 app.include_router(admin_rules.router)
+app.include_router(admin_excel.router)
