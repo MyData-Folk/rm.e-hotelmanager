@@ -3,12 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import init_db
-from app.routers import public, admin_hotels, admin_uploads, admin_rate_plans
+from app.routers import public, admin_hotels, admin_uploads, admin_rate_plans, admin_rules
 
 
 app = FastAPI(
     title="RM e-HotelManager API",
-    version="0.2.0",
+    version="0.4.0",
 )
 
 origins = [
@@ -36,3 +36,4 @@ app.include_router(public.router)
 app.include_router(admin_hotels.router)
 app.include_router(admin_uploads.router)
 app.include_router(admin_rate_plans.router)
+app.include_router(admin_rules.router)
