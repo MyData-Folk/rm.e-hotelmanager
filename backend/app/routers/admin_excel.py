@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlmodel import Session, select
 
 from app.core.database import get_session
 from app.core.security import require_admin_api_key
 from app.models.models import AvailabilityCell, ImportedRate, ImportMetadata
+from app.services.availability_exporter import build_availability_json_export
 from app.services.excel_importer import import_excel_file
 
 
@@ -145,3 +146,25 @@ def list_imported_rates(
         }
         for rate in rates
     ]
+
+
+@router.get("/availability/export/json")
+def export_availability_json(
+    hotel_id: str,
+    start: str,
+    end: str,
+    response: Response,
+    session: Session = Depends(get_session),
+):
+    try:
+        response.headers["Content-Disposition"] = (
+            f'attachment; filename="availability-{hotel_id}-{start}-{end}.json"'
+        )
+        return build_availability_json_export(
+            session=session,
+            hotel_id=hotel_id,
+            start=start,
+            end=end,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
