@@ -8,7 +8,7 @@ from app.routers import public, admin_hotels, admin_uploads, admin_rate_plans, a
 
 app = FastAPI(
     title="RM e-HotelManager API",
-    version="0.4.0",
+    version="0.5.0",
 )
 
 origins = [
@@ -16,6 +16,7 @@ origins = [
     settings.admin_web_origin,
     "http://localhost:5173",
     "http://localhost:5174",
+    "http://localhost:5175",
 ]
 
 app.add_middleware(
