@@ -6,7 +6,7 @@ def normalize_availability_value(value):
             'raw_value': 'x',
             'available_quantity': None,
             'status': 'not_available_for_sale',
-            'label': 'Non disponible à la vente',
+            'label': 'Non disponible Ã  la vente',
         }
 
     if raw == '0':
@@ -14,7 +14,7 @@ def normalize_availability_value(value):
             'raw_value': '0',
             'available_quantity': 0,
             'status': 'sold_out',
-            'label': 'Stock épuisé',
+            'label': 'Stock Ã©puisÃ©',
         }
 
     try:
