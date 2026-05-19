@@ -80,6 +80,46 @@ def test_parse_workbook_imports_vertical_date_column_layout():
     }
 
 
+def test_parse_workbook_imports_folkestone_planning_report_layout():
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Planning"
+    sheet.append([
+        "FOLKESTONE OPERA - mercredi 13 mai 2026 16:56:58",
+        None,
+        None,
+        "13/05/26",
+        "14/05/26",
+    ])
+    sheet.append(["Double Classique", None, "Left for sale", 3, 0])
+    sheet.append([
+        "Double Classique",
+        "RACK-RO-FLEX - RACK RO FLEX",
+        "Price (EUR)",
+        161,
+        188,
+    ])
+    sheet.append([
+        "Double Classique",
+        "OTA-RO-FLEX - OTA RO FLEX",
+        "Price (EUR)",
+        "151,50",
+        178,
+    ])
+
+    result = parse_workbook("folkestone", workbook_bytes(workbook))
+
+    assert result.sheets[0]["kind"] == "planning_report"
+    assert len(result.availability_cells) == 2
+    assert len(result.imported_rates) == 4
+    assert {rate.plan_code for rate in result.imported_rates} == {
+        "OTA-RO-FLEX",
+        "RACK-RO-FLEX",
+    }
+    assert {rate.room_name for rate in result.imported_rates} == {"Double Classique"}
+    assert result.imported_rates[2].price == 151.50
+
+
 def test_import_excel_file_persists_metadata_rates_and_availability():
     workbook = Workbook()
     availability = workbook.active

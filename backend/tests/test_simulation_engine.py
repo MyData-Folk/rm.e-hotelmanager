@@ -1,6 +1,13 @@
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.models.models import DerivedRate, ImportedRate, Partner, PartnerRatePlan
+from app.models.models import (
+    AvailabilityCell,
+    DerivedRate,
+    HotelConfig,
+    ImportedRate,
+    Partner,
+    PartnerRatePlan,
+)
 from app.services.simulation_engine import (
     export_simulation_payload,
     simulate_partner_offer,
@@ -123,6 +130,77 @@ def test_simulate_partner_offer_rejects_unassociated_plan():
             assert "associe" in str(exc)
         else:
             raise AssertionError("Expected unassociated plan to raise ValueError")
+
+
+def test_simulate_partner_offer_supports_date_range_promo_and_exclusions():
+    with make_session() as session:
+        seed_partner(session)
+        session.add(
+            HotelConfig(
+                hotel_id="folkestone",
+                config_json={
+                    "partners": {
+                        "Booking": {
+                            "defaultDiscount": {
+                                "percentage": 10,
+                                "excludePlansContaining": ["OTA"],
+                            }
+                        }
+                    }
+                },
+            )
+        )
+        for day, price, stock in [
+            ("2026-06-01", 200, 3),
+            ("2026-06-02", 100, 0),
+        ]:
+            session.add(
+                ImportedRate(
+                    hotel_id="folkestone",
+                    import_id="import-1",
+                    date=day,
+                    room_name="Double Classique",
+                    plan_code="OTA-RO-FLEX",
+                    price=price,
+                    raw_value=str(price),
+                )
+            )
+            session.add(
+                AvailabilityCell(
+                    hotel_id="folkestone",
+                    import_id="import-1",
+                    date=day,
+                    room_name="Double Classique",
+                    raw_value=str(stock),
+                    available_quantity=stock,
+                    status="available" if stock else "sold_out",
+                    label="Disponible" if stock else "Complet",
+                )
+            )
+        session.commit()
+
+        result = simulate_partner_offer(
+            session=session,
+            hotel_id="folkestone",
+            date="2026-06-01",
+            room_name="Double Classique",
+            partner_name="Booking",
+            plan_code="OTA-RO-FLEX - OTA RO FLEX",
+            source_mode="hybrid",
+            start="2026-06-01",
+            end="2026-06-03",
+            promo_discount=5,
+        )
+
+    assert result["date_range"]["dates"] == ["2026-06-01", "2026-06-02"]
+    assert result["offers"][0]["partner_discount_excluded"] is True
+    assert result["summary"]["subtotal_brut"] == 300
+    assert result["summary"]["total_partner_discount"] == 0
+    assert result["summary"]["total_promo_discount"] == 15
+    assert result["summary"]["total_commission"] == 42.75
+    assert result["summary"]["total_net"] == 242.25
+    assert result["results"][0]["availability"] == "Disponible"
+    assert result["results"][1]["availability"] == "Complet"
 
 
 def test_export_simulation_payload_adds_metadata():
