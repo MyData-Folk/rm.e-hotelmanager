@@ -1,0 +1,77 @@
+﻿body {
+  margin: 0;
+  font-family: Inter, system-ui, Arial, sans-serif;
+  background: #f6f2ea;
+  color: #171717;
+}
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.card {
+  width: min(760px, 100%);
+  background: white;
+  border: 1px solid #e7ded1;
+  border-radius: 28px;
+  padding: 32px;
+  box-shadow: 0 24px 80px rgba(32, 24, 16, .08);
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  color: #8a6d4f;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+h1 {
+  font-size: 42px;
+  margin: 0 0 12px;
+}
+
+.muted {
+  color: #6f6a64;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  margin-top: 24px;
+  font-weight: 700;
+}
+
+input {
+  border: 1px solid #d8cbbb;
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 16px;
+}
+
+button {
+  margin-top: 18px;
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 18px;
+  background: #171717;
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.error {
+  color: #b42318;
+  font-weight: 700;
+}
+
+pre {
+  background: #171717;
+  color: #f6f2ea;
+  padding: 16px;
+  border-radius: 16px;
+  overflow: auto;
+}

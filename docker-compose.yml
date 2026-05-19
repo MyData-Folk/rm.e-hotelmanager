@@ -1,0 +1,36 @@
+﻿services:
+  hotel-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: hoteldb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - hotel-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hoteldb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@hotel-db:5432/hoteldb
+      ADMIN_API_KEY: dev-admin-key
+      ENV: development
+      USER_WEB_ORIGIN: http://localhost:5174
+      ADMIN_WEB_ORIGIN: http://localhost:5173
+      DEFAULT_RATE_SOURCE_MODE: hybrid
+    ports:
+      - "8000:8000"
+    depends_on:
+      hotel-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  hotel-db-data:
